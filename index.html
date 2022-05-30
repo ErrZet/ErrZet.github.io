@@ -6,9 +6,660 @@
     <title>Projekt</title>
   </head>
   <body>
-    <div class="container-fluid p-5 bg-primary text-white text-center">
-        <h1>My First Bootstrap Page</h1>
-        <p>Resize this responsive page to see the effect!</p>
+    <div class="container-fluid p-3 bg-primary text-white text-center">
+        <h1>Usługi sieciowe - Wawrzkowicz Patryk</h1>
+        <p>Docker - Django - Postgres - Nginx</p>
+    </div>
+    <div class="container">
+    </br>
+        <p>Poradnik w ramach którego przedstawie kroki konfiguracji Django działającego na Dockerze wraz z Postgresem.
+            </br>
+            Dla środowiska produkcyjnego dodany zostanie serwer HTTP - Gunicorn, 
+            oraz serwer proxy - Nginx  wraz z obługą plików statycznych i multimedialnych.
+        </p>
+    </br>
+        <p>
+            <h1>Konfiguracja projektu</h1>
+            Zaczynam od stworzenia głównego folderu projektu "poradnik_projekt". </br>
+            W nim tworzę folder "django_projekt", w którym przechowywane będą pliki aplikacji django.
+        </p>
+        <p>
+            Tworzę virtualne środowisko za pomocą wenv, aby odizolować się od systemu.
+            Pojawienie się nazwy środowiska (env) przed ścieżką oznacza pomyślne uruchomienie:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp> $ python -m venv env</br>
+                           $ env/Scripts/Activate.ps1
+                    </samp>
+                </div>     
+            </div>
+            
+        </p>
+        <p>
+            Będąc już w środowisku instaluję Django, tworzę projekt oraz wykonuję migrację:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp> $ pip install django</br>
+                           $ django-admin.py startproject hello_django . </br>
+                           $ python manage.py migrate </br>
+                           $ python manage.py runserver
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            W tym momencie po wpisaniu w przegląrce adresu <a href="http://localhost:8000/" class="link-primary" target="_blank">http://localhost:8000/</a>  poiwnien
+            pokazać nam się ekran startowy Django. Po wyłączeniu serwera (ctrl + C) możemy usunąć
+            wirtualne środowisko.</br>
+            Potrzebny będzie plik tekstowy requirements.txt, w któym przechowywane będą zależności
+            potrzebne do zainstalowania w obrazie Dockera, aktualnie wpisuje tam tylko Django. 
+            Natomiast struktura folderów powinna wyglądać następująco:
+            <img src="img/img_1.PNG" class="d-block" alt="drzewo">
+        </p>
+        <h1>Docker</h1>
+        <p>
+            Z strony <a href="https://www.docker.com/get-started/" class="link-primary" target="_blank">Dockera</a>
+            pobieramy oprogramowanie. W folderze poradnik_projekt tworzę plik Dockerfile:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        FROM python </br></br>
+                        
+                        WORKDIR /usr/src/app</br></br>
+
+                        ENV PYTHONDONTWRITEBYTECODE 1</br>
+                        ENV PYTHONUNBUFFERED 1</br></br>
+
+                        RUN pip install --upgrade pip</br>
+                        COPY ./requirements.txt .</br>
+                        RUN pip install -r requirements.txt</br></br>
+                        
+                        COPY . .
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            W pliku tym zaczynam od obrazu Dockera z Pythonem, ustawiam katalog roboczy (WORKDIR), zmienne środowiskowe (ENV),
+            instaluje zależności z pliku requirements.txt oraz kopiuje projekt Django. </br>
+            Następnie w katalogu głównyn (Projekt) tworzę plik docker-compose.yml :
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        version: "3.9" </br></br>
+                        services:</br>
+                        <p style="padding-left:35px; margin:0;">web:</p>
+                        <p style="padding-left:70px; margin:0;">build: ./app</p>
+                        <p style="padding-left:70px; margin:0;">command: python manage.py runserver 0.0.0.0:8000</p>
+                        <p style="padding-left:70px; margin:0;">volumes:</p>
+                        <p style="padding-left:90px; margin:0;">- ./app/:/usr/src/app/</p>
+                        <p style="padding-left:70px; margin:0;">ports:</p>
+                        <p style="padding-left:90px; margin:0;">- 8000:8000</p>
+                        <p style="padding-left:70px; margin:0;">env_file:</p>
+                        <p style="padding-left:90px; margin:0;">- ./.env.dev</p>
+                    </samp>
+                </div>     
+            </div>
+            <br>
+            <h5 style="margin:0">UWAGA</h5>
+            Pliki *.yml nie tolerują tabulatorów oraz są wrażliwe na odstępy, np. build:./app (brak spacji po "build:") spowoduję błąd.
+        </p>
+        <p>
+            W pliku settings.py trzeba zaaktualizować SECRET_KEY, DEBUG oraz ALLOWED_HOSTS.
+            Ważne aby u góry pliku zaimportować moduł "os".
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        import os <br>
+                        - - - - -<br><br>
+                        SECRET_KEY = os.environ.get("SECRET_KEY") <br><br>
+                        DEBUG = int(os.environ.get("DEBUG", default=0))<br><br>
+                        ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS").split(" ")
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            Następnie w pliku głównym projektu należy utworzyć plik ".env.dev", w którym
+            będą przechowywane zmienne środowiskowe:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        DEBUG=1 <br>
+                        SECRET_KEY=foo <br>
+                        DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] <br>
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            W tym momencie możemy już stworzyć obraz Dockera oraz uruchomić kontener:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp> $ docker-compose build</br>
+                           $ docker-compose up -d 
+                    </samp>
+                </div>     
+            </div>
+            Po wejściu na adres  <a href="http://localhost:8000/" class="link-primary" target="_blank">http://localhost:8000/</a>
+            ponownie powinniśmy ujrzeć ekran powitalny Django.
+        </p>
+        <h1>Postgres</h1>
+        <p>
+            Aby skonfigurować Postgres musimy dodać nową usługę w pliku docker-compose.yml,
+            zaaktualizować ustawienia Django oraz zainstalować Psycopg2 w obrazie Dockera.<br><br>
+            Zaczynam od edycji pliku "docker-compose.yml", w którym dodaje usługę o nazwię "db":
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        version: "3.9" </br></br>
+                        services:</br>
+                        <p style="padding-left:35px; margin:0;">web:</p>
+                        <p style="padding-left:70px; margin:0;">build: ./app</p>
+                        <p style="padding-left:70px; margin:0;">command: python manage.py runserver 0.0.0.0:8000</p>
+                        <p style="padding-left:70px; margin:0;">volumes:</p>
+                        <p style="padding-left:90px; margin:0;">- ./app/:/usr/src/app/</p>
+                        <p style="padding-left:70px; margin:0;">ports:</p>
+                        <p style="padding-left:90px; margin:0;">- 8000:8000</p>
+                        <p style="padding-left:70px; margin:0;">env_file:</p>
+                        <p style="padding-left:90px; margin:0;">- ./.env.dev</p>
+                        <p style="padding-left:70px; margin:0;">depends_on:</p>
+                        <p style="padding-left:90px; margin:0;">- db</p>
+                        <p style="padding-left:70px; margin:0;">networks:</p>
+                        <p style="padding-left:90px; margin:0;">- baza-net</p>
+                        <br>
+                        <p style="padding-left:35px; margin:0;">db:</p>
+                        <p style="padding-left:70px; margin:0;">image: postgres:13.0-alpine</p>
+                        <p style="padding-left:70px; margin:0;">volumes:</p>
+                        <p style="padding-left:90px; margin:0;">- postgres_data:/var/lib/postgresql/data/</p>
+                        <p style="padding-left:70px; margin:0;">environment:</p>
+                        <p style="padding-left:90px; margin:0;">- POSTGRES_USER=hello_django</p>
+                        <p style="padding-left:90px; margin:0;">- POSTGRES_PASSWORD=hello_django</p>
+                        <p style="padding-left:90px; margin:0;">- POSTGRES_DB=hello_django_dev</p>
+                        <p style="padding-left:70px; margin:0;">networks:</p>
+                        <p style="padding-left:90px; margin:0;">- baza-net</p>
+                        <br>
+                        <p style="margin:0;">volumes:</p>
+                        <p style="padding-left:35px; margin:0;">postgres_data:</p>
+                        <br>
+                        <p style="margin:0;">networks:</p>
+                        <p style="padding-left:35px; margin:0;">- baza-net:</p>
+                    </samp>
+                </div>     
+            </div>
+            <br>
+            Wolumen "postgres_data" został powiązany z katalogiem "/var/lib/postgresql/data/",
+            dzięki czemu dane będą zachowane poza okresem działania kontenera. <br>
+            Podczas konfiguracji Django będę potrzebował kilku nowych zmiennych środowiskowych,
+            dlatego aktualizuje plik ".env.dev":
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        DEBUG=1 <br>
+                        SECRET_KEY=foo <br>
+                        DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] <br>
+                        SQL_ENGINE=django.db.backends.postgresql <br>
+                        SQL_DATABASE=hello_django_dev <br>
+                        SQL_USER=hello_django <br>
+                        SQL_PASSWORD=hello_django<br>
+                        SQL_HOST=db<br>
+                        SQL_PORT=5432<br>
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            Edytuje ustawienia bazy danych w pliku konfiguracyjnym Django "setting.py":
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        DATABASES = { <br>
+                            <p style="padding-left:20px; margin:0;">"default": {</p>
+                                <p style="padding-left:45px; margin:0;">"ENGINE": os.environ.get("SQL_ENGINE", "django.db.backends.sqlite3"),</p>
+                                <p style="padding-left:45px; margin:0;">"NAME": os.environ.get("SQL_DATABASE", BASE_DIR / "db.sqlite3"),</p>
+                                <p style="padding-left:45px; margin:0;">"USER": os.environ.get("SQL_USER", "user"),</p>
+                                <p style="padding-left:45px; margin:0;">"PASSWORD": os.environ.get("SQL_PASSWORD", "password"),</p>
+                                <p style="padding-left:45px; margin:0;">"HOST": os.environ.get("SQL_HOST", "localhost"),</p>
+                                <p style="padding-left:45px; margin:0;">"PORT": os.environ.get("SQL_PORT", "5432"),</p>
+                                <p style="padding-left:25px; margin:0;">}</p>
+                        }
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            W pliku "Dockerfile" dodaje instalację wymaganych paczek dla Psycopg2:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        FROM python </br></br>
+                        
+                        WORKDIR /usr/src/app</br></br>
+
+                        RUN apk update \ <br>
+                        && apk add postgresql-dev gcc python3-dev musl-dev <br><br>
+
+                        ENV PYTHONDONTWRITEBYTECODE 1</br>
+                        ENV PYTHONUNBUFFERED 1</br></br>
+
+                        RUN pip install --upgrade pip</br>
+                        COPY ./requirements.txt .</br>
+                        RUN pip install -r requirements.txt</br></br>
+                        
+                        COPY . .
+                    </samp>
+                </div>     
+            </div>
+            <br>
+            Oraz dodaje Psycopg2 do requirements.txt:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        Django<br>
+                        psycopg2-binary==2.9.1
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            Buduję teraz obraz, który połączy dwa kontenery oraz wykonam migrację:
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp> $ docker-compose up -d</br>
+                           $ docker-compose exec web python manage.py migrate --noinput
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        Następnie w folderze "poradnik_projekt" tworzę plik "entrypoint.sh", który będzie sprawdzał
+        Postgresa przed wykonaniem migracji i uruchomieniem serwera:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    #!/bin/sh<br><br>
+                    if [ "$DATABASE" = "postgres" ]<br>
+                    then <br>
+                        <p style="padding-left:20px; margin:0;">echo "Czekam na postgresa..."{</p><br>
+                        <p style="padding-left:20px; margin:0;">while ! nc -z $SQL_HOST $SQL_PORT; do</p>
+                        <p style="padding-left:35px; margin:0;">sleep 0.1</p>
+                        <p style="padding-left:20px; margin:0;">done</p> <br>
+                        <p style="padding-left:20px; margin:0;">echo "PostgreSQL wystartowal"</p> <br>
+                    fi <br><br>
+                    python manage.py flush --no-input <br>
+                    python manage.py migrate <br><br>
+                    exec "$@"
+                </samp>
+            </div>     
+        </div>
+        <br>
+        Należy skopiować plik "entrypoint.sh" i uruchomić go jako polecenie Docker entypoint. W tym celu edytuje plik
+        "Dockerfile":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    FROM python </br></br>
+                    
+                    WORKDIR /usr/src/app</br></br>
+
+                    RUN apk update \ <br>
+                    && apk add postgresql-dev gcc python3-dev musl-dev <br><br>
+
+                    ENV PYTHONDONTWRITEBYTECODE 1</br>
+                    ENV PYTHONUNBUFFERED 1</br></br>
+
+                    RUN pip install --upgrade pip</br>
+                    COPY ./requirements.txt .</br>
+                    RUN pip install -r requirements.txt</br></br>
+
+                    COPY ./entrypoint.sh . <br>
+                    RUN sed -i 's/\r$//g' /usr/src/app/entrypoint.sh<br>
+                    RUN chmod +x /usr/src/app/entrypoint.sh<br><br>
+                    
+                    COPY . . <br><br>
+                    ENTRYPOINT ["/usr/src/app/entrypoint.sh"]
+                </samp>
+            </div>     
+        </div>
+        <br>
+        <p>
+            Dodaję zmienną środowiskową DATABASE do pliku ".env.dev":
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        DEBUG=1 <br>
+                        SECRET_KEY=foo <br>
+                        DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] <br>
+                        SQL_ENGINE=django.db.backends.postgresql <br>
+                        SQL_DATABASE=hello_django_dev <br>
+                        SQL_USER=hello_django <br>
+                        SQL_PASSWORD=hello_django<br>
+                        SQL_HOST=db<br>
+                        SQL_PORT=5432<br>
+                        DATABASE=postgres
+                    </samp>
+                </div>     
+            </div>
+        </p>
+        <p>
+            Należy teraz poleceniem "$ docker-compose up -d" przebudować obrazy i uruchomić kontener.
+            Sprawdzić czy aplikacja działa poprawnie pod adresem <a href="http://localhost:8000/" class="link-primary" target="_blank">http://localhost:8000/</a>.
+        </p>
+        <h1>Gunicorn</h1>
+        <p>
+            W celu stworzenia środowiska producyjnego musimy dodać do pliku requirements.txt "Gunicorn".
+            Ponieważ w rozwoju aplikacji wciąż chce korzystać z wbudowanego serwera Django, na potrzeby produkcji tworzę nowy plik compose 
+            o nazwie "docker-compose.prod.yml":
+            <div class="container d-flex align-items-center justify-content-center">
+                <div class="lh-1 bg-dark text-white px-2 py-1">
+                    <samp>
+                        version: "3.9" </br></br>
+                        services:</br>
+                        <p style="padding-left:35px; margin:0;">web:</p>
+                        <p style="padding-left:70px; margin:0;">build: ./app</p>
+                        <p style="padding-left:70px; margin:0;">command: gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000</p>
+                        <p style="padding-left:70px; margin:0;">ports:</p>
+                        <p style="padding-left:90px; margin:0;">- 8000:8000</p>
+                        <p style="padding-left:70px; margin:0;">ports:</p>
+                        <p style="padding-left:90px; margin:0;">- 8000:8000</p>
+                        <p style="padding-left:70px; margin:0;">env_file:</p>
+                        <p style="padding-left:90px; margin:0;">- ./.env.dev</p>
+                        <p style="padding-left:70px; margin:0;">depends_on:</p>
+                        <p style="padding-left:90px; margin:0;">- db</p>
+                        <p style="padding-left:70px; margin:0;">networks:</p>
+                        <p style="padding-left:90px; margin:0;">- baza-net</p>
+                        <br>
+                        <p style="padding-left:35px; margin:0;">db:</p>
+                        <p style="padding-left:70px; margin:0;">image: postgres:13.0-alpine</p>
+                        <p style="padding-left:70px; margin:0;">volumes:</p>
+                        <p style="padding-left:90px; margin:0;">- postgres_data:/var/lib/postgresql/data/</p>
+                        <p style="padding-left:70px; margin:0;">env_file:</p>
+                        <p style="padding-left:90px; margin:0;">- ./.env.prod.db</p>
+                        <p style="padding-left:70px; margin:0;">networks:</p>
+                        <p style="padding-left:90px; margin:0;">- baza-net</p>
+                        <br>
+                        <p style="margin:0;">volumes:</p>
+                        <p style="padding-left:35px; margin:0;">postgres_data:</p>
+                        <br>
+                        <p style="margin:0;">networks:</p>
+                        <p style="padding-left:35px; margin:0;">- baza-net:</p>
+                    </samp>
+                </div>
+            </div>
+        </p>
+        <p>
+            Jak widać w "command" używam już Gunicorna, a nie serwera developerskiego Django. Usunąłem również wolumin z usługi sieciowej,
+            ponieważ nie jest on potrzebny w produkcji. Zmienne środowiskowe wczytuję z osobnych plików, które należy teraz stworzyć:
+        </p>
+        <p class="fst-italic">.env.prod:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    DEBUG=0 <br>
+                    SECRET_KEY=change_me <br>
+                    DJANGO_ALLOWED_HOSTS=localhost 127.0.0.1 [::1] <br>
+                    SQL_ENGINE=django.db.backends.postgresql <br>
+                    SQL_DATABASE=hello_django_prod <br>
+                    SQL_USER=hello_django <br>
+                    SQL_PASSWORD=hello_django<br>
+                    SQL_HOST=db<br>
+                    SQL_PORT=5432<br>
+                    DATABASE=postgres
+                </samp>
+            </div>     
+        </div>
+    </br>
+        <p class="fst-italic">.env.prod.db:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    POSTGRES_USER=hello_django <br>
+                    POSTGRES_PASSWORD=hello_django <br>
+                    POSTGRES_DB=hello_django_prod <br>
+                </samp>
+            </div>     
+        </div>
+    </br>
+    <p>
+    Usuwam kontenery developerskie wraz z woluminami (flaga -v):
+    <div class="container d-flex align-items-center justify-content-center">
+        <div class="lh-1 bg-dark text-white px-2 py-1">
+            <samp>
+                $ docker-compose down -v
+            </samp>
+        </div>     
+    </div>
+    <br>
+    <p>Buduję obrazy produkcyjne i uruchamiam kontenery:</p>
+    <div class="container d-flex align-items-center justify-content-center">
+        <div class="lh-1 bg-dark text-white px-2 py-1">
+            <samp>
+                $ docker-compose -f docker-compose.prod.yml up -d --build
+            </samp>
+        </div>     
+    </div>
+    </p>
+    <p>
+        Należy teraz przetestować stronę administracyjną Django pod adresem <a href="http://localhost:8000/" class="link-primary" target="_blank">http://localhost:8000/admin.</a>
+        Zgodnie z oczekiwaniem nie powinna posiadać styli, ponieważ pliki statyczne nie są już ładowane, rozwiązanie tego problemu pokaże później.
+    </p>
+    <h1>Produkcyjne Dockerfile</h1>
+    <p> W fazie rozwojowej przy każdym uruchomieniu wykonujemy polecenie flush database (czyszczenie bazy)
+        oraz migrate. W fazie produkcyjnej nie chcemy aby tak się działo, dlatego tworzę nowe pliki entrypoint:
+        <p class="fst-italic">entrypoint.prod.sh:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    #!/bin/sh<br><br>
+                    if [ "$DATABASE" = "postgres" ]<br>
+                    then <br>
+                        <p style="padding-left:20px; margin:0;">echo "Czekam na postgresa..."{</p><br>
+                        <p style="padding-left:20px; margin:0;">while ! nc -z $SQL_HOST $SQL_PORT; do</p>
+                        <p style="padding-left:35px; margin:0;">sleep 0.1</p>
+                        <p style="padding-left:20px; margin:0;">done</p> <br>
+                        <p style="padding-left:20px; margin:0;">echo "PostgreSQL wystartowal"</p> <br>
+                    fi <br><br>
+                    exec "$@"
+                </samp>
+            </div>     
+        </div>
+    </p>
+    <p>
+    Tworzę nowy plik Dockerfile o nazwie "Dockerfile.prod", który będzie używany w wersji produkcyjnej:
+    <div class="container d-flex align-items-center justify-content-center">
+        <div class="lh-1 bg-dark text-white px-2 py-1">
+            <samp>
+                # BUILDER # <br>
+                FROM python as builder</br></br>
+                
+                WORKDIR /usr/src/app</br></br>
+
+                ENV PYTHONDONTWRITEBYTECODE 1</br>
+                ENV PYTHONUNBUFFERED 1</br></br>
+
+                RUN apk update \ <br>
+                && apk add postgresql-dev gcc python3-dev musl-dev <br><br>
+
+                RUN pip install --upgrade pip</br>
+                RUN pip install flake8==3.9.2 <br>
+                COPY . . <br>
+                RUN flake8 --ignore=E501,F401 . <br>
+
+                COPY ./requirements.txt .</br>
+                RUN pip wheel --no-cache-dir --no-deps --wheel-dir /usr/src/app/wheels -r requirements.txt</br></br>
+
+                # KONCOWY # <br>
+                FROM python as builder</br></br>
+
+                RUN mkdir -p /home/app <br><br>
+
+                RUN addgroup -S app && adduser -S app -G app <br><br>
+
+                ENV HOME=/home/app <br>
+                ENV APP_HOME=/home/app/web <br>
+                RUN mkdir $APP_HOME <br>
+                WORKDIR $APP_HOME <br><br>
+
+                RUN apk update && apk add libpq <br>
+                COPY --from=builder /usr/src/app/wheels /wheels  <br>
+                COPY --from=builder /usr/src/app/requirements.txt .  <br>
+                RUN pip install --no-cache /wheels/*    <br><br>
+
+                COPY ./entrypoint.prod.sh .      <br>
+                RUN sed -i 's/\r$//g'  $APP_HOME/entrypoint.prod.sh     <br>
+                RUN chmod +x  $APP_HOME/entrypoint.prod.sh      <br><br>
+
+                COPY . $APP_HOME <br><br>
+
+                RUN chown -R app:app $APP_HOME <br><br>
+
+                USER app <br><br>
+
+                ENTRYPOINT ["/home/app/web/entrypoint.prod.sh"]
+            </samp>
+        </div>     
+    </div>
+    <br>
+    Zastosowane jest tutaj wieloetapowe budowanie Dockera, aby zmniejszyć ostateczny rozmiar obrazu.
+    Builder jest obrazem tymczasowym, który buduje koła Pythona. Są one następnie kopiowane do końcowego
+    obrazu produkcyjnego, a obraz budujący jest usuwany. <br>
+    Został utworzony również użytkownik "app" nie będący rootem, w celach zwiększenia bezpieczeństwa.
+    </p>
+    <br>
+    <p>
+        Należy teraz zaaktualizować plik "docker-compose.prod.yml", aby usługa sieciowa
+        była budowana z pliku "Dockerfile.prod":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    web:
+                    <p style="padding-left:35px; margin:0;">build:</p>
+                    <p style="padding-left:70px; margin:0;">context: ./app</p>   
+                    <p style="padding-left:70px; margin:0;">dockerfile: Dockerfile.prod</p>
+                    <p style="padding-left:35px; margin:0;">command: gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000</p>
+                    <p style="padding-left:35px; margin:0;">ports:</p>
+                    <p style="padding-left:70px; margin:0;">- 8000:8000</p>
+                    <p style="padding-left:35px; margin:0;">env_file:</p>
+                    <p style="padding-left:70px; margin:0;">- ./.env.dev</p>
+                    <p style="padding-left:35px; margin:0;">depends_on:</p>
+                    <p style="padding-left:70px; margin:0;">- db</p>
+                    <p style="padding-left:35px; margin:0;">networks:</p>
+                    <p style="padding-left:70px; margin:0;">- baza-net</p>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        Następnie wykonać:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    $ docker-compose -f docker-compose.prod.yml down -v <br>
+                    $ docker-compose -f docker-compose.prod.yml up -d --build <br>
+                    $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput <br>
+                </samp>
+            </div>     
+        </div>
+    </p>
+    <h1> Nginx </h1>
+    Jako ostatnie dodaje Nginx, które będzie działało jako odwrotne proxy dla Gunicorna,
+    obsługując żądania klientów oraz serwując pliki statyczne.
+    <p>
+        <br>
+        Zaczynam od dodania serwisu do pliku "docker-compose.prod.yml":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    nginx:
+                    <p style="padding-left:35px; margin:0;">build: ./nginx</p>
+                    <p style="padding-left:35px; margin:0;">ports:</p>   
+                    <p style="padding-left:70px; margin:0;">- 1337:80</p>
+                    <p style="padding-left:35px; margin:0;">depends_on:</p>
+                    <p style="padding-left:70px; margin:0;">- web</p>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        W głównym folderze projektu tworzę poniższe foldery i pliki:
+        <img src="img/img_2.PNG" class="d-block" alt="drzewo">
+        <p class="fst-italic">Dockerfile:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                   FROM nginx:1.21-alpine <br><br>
+                   RUN rm /etc/nginx/conf.d/default.conf<br>
+                   COPY nginx.conf /etc/nginx/conf.d
+                </samp>
+            </div>
+        </div>
+        <br>
+        <p class="fst-italic">nginx.conf:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    upstream hello_django {
+                    <p style="padding-left:35px; margin:0;">server web:8000;</p>
+                    }   <br><br>
+                    server {<br> <br>
+                    <p style="padding-left:35px; margin:0;">listen 80;</p> <br>
+                    <p style="padding-left:35px; margin:0;">location / {</p>
+                        <p style="padding-left:65px; margin:0;">proxy_pass http://hello_django;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_set_header Host $host;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_redirect off</p>
+                        <p style="padding-left:35px; margin:0;">}</p>
+                    }
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+    Aktualizuję usłguę "web" w pliku docker-compose.prod.yml, zamieniając porty na expose"
+    <div class="container d-flex align-items-center justify-content-center">
+        <div class="lh-1 bg-dark text-white px-2 py-1">
+            <samp>
+                web:
+                <p style="padding-left:35px; margin:0;">build:</p>
+                <p style="padding-left:70px; margin:0;">context: ./app</p>   
+                <p style="padding-left:70px; margin:0;">dockerfile: Dockerfile.prod</p>
+                <p style="padding-left:35px; margin:0;">command: gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000</p>
+                <p style="padding-left:35px; margin:0;">expose</p>
+                <p style="padding-left:70px; margin:0;">- 8000</p>
+                <p style="padding-left:35px; margin:0;">env_file:</p>
+                <p style="padding-left:70px; margin:0;">- ./.env.dev</p>
+                <p style="padding-left:35px; margin:0;">depends_on:</p>
+                <p style="padding-left:70px; margin:0;">- db</p>
+                <p style="padding-left:35px; margin:0;">networks:</p>
+                <p style="padding-left:70px; margin:0;">- baza-net</p>
+            </samp>
+        </div>
+    </div>
+        <br> O różnicy między portami a expose można przeczytać <a href="https://stackoverflow.com/questions/40801772/what-is-the-difference-between-docker-compose-ports-vs-expose" class="link-primary" target="_blank">tutaj</a>.
+        <br> Od tego momentu port 8000 jest udostępniany tylko wewnętrznie dla innych usług Dockera.
+    </p>
+    <p>
+        Aby przetestować czy wszystko działa poprawnie należy utworzyć nowe obrazy i wykonać migrację:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    $ docker-compose -f docker-compose.prod.yml down -v<br>
+                    $ docker-compose -f docker-compose.prod.yml up -d --build<br>
+                    $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput
+                </samp>
+            </div>
+        </div>
+        <br>
+        Aplikacja powinna działąć pod adresem <a href="http://localhost:1337" class="link-primary" target="_blank">http://localhost:1337</a>
+        <br> Jeżeli strona powitalna Django pojawia się, wyłączam kontenery poleceniem
+        <br><br>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    $ docker-compose -f docker-compose.prod.yml down -v
+                </samp>
+            </div>
+        </div>
+    </p>
     </div>
   </body>
 </html>
