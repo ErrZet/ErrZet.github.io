@@ -359,8 +359,6 @@
                         <p style="padding-left:70px; margin:0;">command: gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000</p>
                         <p style="padding-left:70px; margin:0;">ports:</p>
                         <p style="padding-left:90px; margin:0;">- 8000:8000</p>
-                        <p style="padding-left:70px; margin:0;">ports:</p>
-                        <p style="padding-left:90px; margin:0;">- 8000:8000</p>
                         <p style="padding-left:70px; margin:0;">env_file:</p>
                         <p style="padding-left:90px; margin:0;">- ./.env.dev</p>
                         <p style="padding-left:70px; margin:0;">depends_on:</p>
@@ -660,6 +658,391 @@
             </div>
         </div>
     </p>
+    <h1>Pliki statyczne</h1>
+    <p>
+        Zaczynam od edytowania pliku "settings.py":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    STATIC_URL = "/static/" <br>
+                    STATIC_ROOT = BASE_DIR / "staticfiles" <br>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        Teraz każde żądanie w wersji developerskiej będzie kierowane do http://localhost:8000/static/*
+        będzie obługiwane z katalogu "staticfiles". <br><br>
+        Aby to przetestować wystarczy zbudować obrazy i uruchomić nowe kontenery.
+        To czy pliki statyczne są ładowane prawidłowo zobaczymy pod adresem http://localhost:8000/admin.
+    </p>
+    <p>
+        <h3>Wersja produkcyjna</h3>
+        W przypadku produkcji w pliku "docker-compose.prod.yml" dodaje wolumen do usługi sieciowej
+        i nginx, aby każdy kontener współdzielił katalog o nazwie "staticfiles":
+        <br><br>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    version: "3.9" </br></br>
+                    services:</br>
+                    <p style="padding-left:35px; margin:0;">web:</p>
+                    <p style="padding-left:70px; margin:0;">build:</p>
+                    <p style="padding-left:95px; margin:0;">context: ./app</p>
+                    <p style="padding-left:95px; margin:0;">dockerfile: Dockerfile.prod</p>
+                    <p style="padding-left:70px; margin:0;">command: gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000</p>
+                    <p style="padding-left:70px; margin:0;">volumes:</p>
+                    <p style="padding-left:95px; margin:0;">- static_volume:/home/app/web/staticfiles</p>
+                    <p style="padding-left:70px; margin:0;">expose:</p>
+                    <p style="padding-left:90px; margin:0;">- 8000:8000</p>
+                    <p style="padding-left:70px; margin:0;">env_file:</p>
+                    <p style="padding-left:90px; margin:0;">- ./.env.dev</p>
+                    <p style="padding-left:70px; margin:0;">depends_on:</p>
+                    <p style="padding-left:90px; margin:0;">- db</p>
+                    <p style="padding-left:70px; margin:0;">networks:</p>
+                    <p style="padding-left:90px; margin:0;">- baza-net</p>
+                    <br>
+                    <p style="padding-left:35px; margin:0;">db:</p>
+                    <p style="padding-left:70px; margin:0;">image: postgres:13.0-alpine</p>
+                    <p style="padding-left:70px; margin:0;">volumes:</p>
+                    <p style="padding-left:90px; margin:0;">- postgres_data:/var/lib/postgresql/data/</p>
+                    <p style="padding-left:70px; margin:0;">env_file:</p>
+                    <p style="padding-left:90px; margin:0;">- ./.env.prod.db</p>
+                    <p style="padding-left:70px; margin:0;">networks:</p>
+                    <p style="padding-left:90px; margin:0;">- baza-net</p>
+                    <br>
+                    <p style="margin:0;">volumes:</p>
+                    <p style="padding-left:35px; margin:0;">postgres_data:</p>
+                    <p style="padding-left:35px; margin:0;">static_volume:</p>
+                    <br>
+                    <p style="margin:0;">networks:</p>
+                    <p style="padding-left:35px; margin:0;">- baza-net:</p>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        Muszę także utworzyć folder "/home/app/web/staticfiles" w pliku "Dockerfile.prod":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    ...
+                    <br><br>
+                    ENV HOME=/home/app <br>
+                    ENV APP_HOME=/home/app/web <br>
+                    RUN mkdir $APP_HOME<br>
+                    RUN mkdir $APP_HOME/staticfiles <br>
+                    WORKDIR $APP_HOME <br>
+                    <br><br>
+                    ...
+                </samp>
+            </div>
+        </div>
+        Robię to ponieważ Docker Compose montuje woluminy jako root, przez co stworzony wcześniej
+        zwykły użytkownik otrzymałby błąd odmowy uprawnień podczas uruchamiania polecenia collectstatic.
+        Drugim sposobem jest stworzenie katalogu jako root i po zamontowaniu zmienienie uprawnień.
+        <br><br>
+    </p>
+    <p>
+        Następnie konieczne jest zaaktualizowanie konfuguracji Nginx, aby kierował żądania plików
+        statycznych do folderu "staticfiles":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    upstream hello_django {
+                    <p style="padding-left:35px; margin:0;">server web:8000;</p>
+                    }   <br><br>
+                    server {<br> <br>
+                    <p style="padding-left:35px; margin:0;">listen 80;</p> <br>
+                    <p style="padding-left:35px; margin:0;">location / {</p>
+                        <p style="padding-left:65px; margin:0;">proxy_pass http://hello_django;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_set_header Host $host;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_redirect off</p>
+                        <p style="padding-left:35px; margin:0;">}</p> <br>
+                    <p style="padding-left:35px; margin:0;">location /static/ {</p>
+                        <p style="padding-left:65px; margin:0;">alias /home/app/web/staticfiles/;</p>
+                        <p style="padding-left:35px; margin:0;">}</p> <br>
+                    }
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        Aby sprawdzić czy pliki statyczne są już prawidłowo kierowane, należy wyłączyć kontenery developerskie, stworzyć obrazy produkcyjne,
+        wykonać mgirację oraz przenieść pliki statyczne (collectstatic):
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    <br>
+                    $ docker-compose down -v <br>
+                    $ docker-compose -f docker-compose.prod.yml up -d --build <br>
+                    $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput<br>
+                    $ docker-compose -f docker-compose.prod.yml exec web python manage.py collectstatic --no-input --clear <br>
+                    <br>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        W tym momencie pod adresem <a href="http://localhost:1337/admin" class="link-primary" target="_blank">http://localhost:1337/admin</a>
+        powinniśmy ujrzeć prawidłowo wyświetlony panel logowania. <br>
+        Należy teraz usunąć kontenery:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    $ docker-compose -f docker-compose.prod.yml down -v
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        <h1>Pliki multimedialne i przykładowa aplikacja</h1>
+        Do przetestowania obsługi plików multimedialnych stworzę nową aplikację Django:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    $ docker-compose up -d --build <br>
+                    $ docker-compose exec web python manage.py startapp upload
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        W pliku "settings.py" do listy INSTALLED_APPS dodaje aplikacje "upload":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    INSTALLED_APPS = [      <br>
+                    <p style="padding-left:35px; margin:0;">"django.contrib.admin",</p>
+                    <p style="padding-left:35px; margin:0;">"django.contrib.auth",</p>
+                    <p style="padding-left:35px; margin:0;">"django.contrib.contenttypes",</p>
+                    <p style="padding-left:35px; margin:0;">"django.contrib.sessions",</p>
+                    <p style="padding-left:35px; margin:0;">"django.contrib.messages",</p>
+                    <p style="padding-left:35px; margin:0;">"django.contrib.staticfiles",</p>
+                    <br>
+                    <p style="padding-left:35px; margin:0;">"upload",</p>
+                    ]
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        <br>
+        <p class="fst-italic">app/upload/views.py:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    from django.shortcuts import render      <br>
+                    from django.core.files.storage import FileSystemStorage <br><br><br>
+                    def image_upload(request):      <br>
+                    <p style="padding-left:25px; margin:0;">if request.method == "POST" and request.FILES["image_file"]:</p>
+                    <p style="padding-left:55px; margin:0;">image_file = request.FILES["image_file"]</p>
+                    <p style="padding-left:55px; margin:0;">fs = FileSystemStorage()</p>
+                    <p style="padding-left:55px; margin:0;">filename = fs.save(image_file.name, image_file)</p>
+                    <p style="padding-left:55px; margin:0;">image_url = fs.url(filename)</p>
+                    <p style="padding-left:55px; margin:0;">print(image_url)</p>
+                    <p style="padding-left:55px; margin:0;">return render(request, "upload.html", {</p>
+                        <p style="padding-left:85px; margin:0;">"image_url": image_url</p>
+                    <p style="padding-left:45px; margin:0;">})</p>
+                    <p style="padding-left:25px; margin:0;">return render(request, "upload.html")</p>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <br>
+    <p> 
+        W folderze "poradnik_projekt/upload" tworzę katalog "templates", a w nim tworzę nowy szablon o nazwie "upload.html". Edycji dokonuje również w niektórych plikach Django.
+    </p>
+        <p class="fst-italic">poradnik_projekt/upload/upload.html:</p>
+     <div class="container d-flex align-items-center justify-content-center">
+        <div class="lh-1 bg-dark text-white px-2 py-1">
+            <samp>
+                {% block content %}      <br><br>
+                    <p style="padding-left:25px; margin:0;">&lt;form action="{% url "upload" %}" method="post" enctype="multipart/form-data"&gt;</form></p>
+                        <p style="padding-left:50px; margin:0;">{% csrf_token %}</p>
+                        <p style="padding-left:50px; margin:0;">&lt;input type="file" name="image_file"&gt;</p>
+                        <p style="padding-left:50px; margin:0;">&lt;input type="submit" value="submit" /&gt;</p>
+                    <p style="padding-left:25px; margin:0;">&lt;/form&gt;</p> <br>
+                    <p style="padding-left:25px; margin:0;">{% if image_url %}</p>
+                        <p style="padding-left:50px; margin:0;">&lt;p&gt;File uploaded at: &lt;a href="{{ image_url }}"&gt;{{ image_url }}&lt;/a&gt;&lt;/p&gt;</p>
+                    <p style="padding-left:25px; margin:0;">{% endif %}</p> <br>
+                {% endblock %}
+            </samp>
+        </div>
     </div>
+    <p>
+        <p class="fst-italic">poradnik_projekt/django_projekt/urls.py:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    from django.contrib import admin    <br>
+                    from django.urls import path        <br>
+                    from django.conf import settings    <br>
+                    from django.conf.urls.static import static  <br><br>
+                    from upload.views import image_upload   <br><br>
+                    urlpatterns = [ <br>
+                        <p style="padding-left:25px; margin:0;">path("", image_upload, name="upload"),</p>
+                        <p style="padding-left:25px; margin:0;">path("admin/", admin.site.urls),</p>
+                    ]       <br><br>
+                    if bool(settings.DEBUG):
+                    <p style="padding-left:25px; margin:0;">urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)</p>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+    <p class="fst-italic">poradnik_projekt/django_projekt/settings.py:</p>
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    MEDIA_URL = "/media/"    <br>
+                    MEDIA_ROOT = BASE_DIR / "mediafiles"        <br>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        <h3>Wersja developerska</h3>
+        W tym momencie w wersji developerskiej powinna istnieć możliwość przesłania obrazu
+        na adres <a href="http://localhost:8000/" class="link-primary" target="_blank">http://localhost:8000/</a>,
+        oraz następnie wyśweietlenie tego obrazu pod adresem <a href="http://localhost:8000/NAZWA_PLIKU" class="link-primary" target="_blank">http://localhost:8000/NAZWA_PLIKU</a>.
+    </p>
+    <p>
+        <h3>Wersja produkcyjna</h3>
+        Do produkcji potrzebny będzie kolejny volumin dla aplikacji webowej oraz nginx, który dodaje w pliku "docker-compose.prod.yml":
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    version: "3.9" </br></br>
+                    services:</br>
+                    <p style="padding-left:35px; margin:0;">web:</p>
+                    <p style="padding-left:70px; margin:0;">build:</p>
+                    <p style="padding-left:95px; margin:0;">context: ./app</p>
+                    <p style="padding-left:95px; margin:0;">dockerfile: Dockerfile.prod</p>
+                    <p style="padding-left:70px; margin:0;">command: gunicorn hello_django.wsgi:application --bind 0.0.0.0:8000</p>
+                    <p style="padding-left:70px; margin:0;">volumes:</p>
+                    <p style="padding-left:95px; margin:0;">- static_volume:/home/app/web/staticfiles</p>
+                    <p style="padding-left:95px; margin:0;">- media_volume:/home/app/web/mediafiles</p>
+                    <p style="padding-left:70px; margin:0;">expose:</p>
+                    <p style="padding-left:90px; margin:0;">- 8000:8000</p>
+                    <p style="padding-left:70px; margin:0;">env_file:</p>
+                    <p style="padding-left:90px; margin:0;">- ./.env.dev</p>
+                    <p style="padding-left:70px; margin:0;">depends_on:</p>
+                    <p style="padding-left:90px; margin:0;">- db</p>
+                    <p style="padding-left:70px; margin:0;">networks:</p>
+                    <p style="padding-left:90px; margin:0;">- baza-net</p>
+                    <br>
+                    <p style="padding-left:35px; margin:0;">db:</p>
+                    <p style="padding-left:70px; margin:0;">image: postgres:13.0-alpine</p>
+                    <p style="padding-left:70px; margin:0;">volumes:</p>
+                    <p style="padding-left:90px; margin:0;">- postgres_data:/var/lib/postgresql/data/</p>
+                    <p style="padding-left:70px; margin:0;">env_file:</p>
+                    <p style="padding-left:90px; margin:0;">- ./.env.prod.db</p>
+                    <p style="padding-left:70px; margin:0;">networks:</p>
+                    <p style="padding-left:90px; margin:0;">- baza-net</p>
+                    <br>
+                    <p style="padding-left:35px; margin:0;">nginx:</p>
+                    <p style="padding-left:70px; margin:0;">build: ./nginx</p>
+                    <p style="padding-left:70px; margin:0;">volumes:</p>
+                    <p style="padding-left:90px; margin:0;">- static_volume:/home/app/web/staticfiles</p>
+                    <p style="padding-left:90px; margin:0;">- media_volume:/home/app/web/mediafiles</p>
+                    <p style="padding-left:70px; margin:0;">ports:</p>
+                    <p style="padding-left:90px; margin:0;">- 1337:80</p>
+                    <p style="padding-left:70px; margin:0;">depends_on:</p>
+                    <p style="padding-left:90px; margin:0;">- web</p>
+                    <br>
+                    <p style="margin:0;">volumes:</p>
+                    <p style="padding-left:35px; margin:0;">postgres_data:</p>
+                    <p style="padding-left:35px; margin:0;">static_volume:</p>
+                    <p style="padding-left:35px; margin:0;">media_volume:</p>
+                    <br>
+                    <p style="margin:0;">networks:</p>
+                    <p style="padding-left:35px; margin:0;">- baza-net:</p>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <br>
+    <p>
+        Tworzę folder "/home/app/web/mediafiles" w Dockerfile.prod:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    . . . <br><br>
+                    ENV HOME=/home/app    <br>
+                    ENV APP_HOME=/home/app/web        <br>
+                    RUN mkdir $APP_HOME<br>
+                    RUN mkdir $APP_HOME/staticfiles<br>
+                    RUN mkdir $APP_HOME/mediafiles<br>
+                    WORKDIR $APP_HOME<br><br>
+                    . . .
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        Aktualizuje ustawienia Nginx:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    upstream hello_django {
+                    <p style="padding-left:35px; margin:0;">server web:8000;</p>
+                    }   <br><br>
+                    server {<br> <br>
+                    <p style="padding-left:35px; margin:0;">listen 80;</p> <br>
+                    <p style="padding-left:35px; margin:0;">location / {</p>
+                        <p style="padding-left:65px; margin:0;">proxy_pass http://hello_django;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_set_header Host $host;</p>
+                        <p style="padding-left:65px; margin:0;">proxy_redirect off</p>
+                        <p style="padding-left:35px; margin:0;">}</p> <br>
+                    <p style="padding-left:35px; margin:0;">location /static/ {</p>
+                        <p style="padding-left:65px; margin:0;">alias /home/app/web/staticfiles/;</p>
+                        <p style="padding-left:35px; margin:0;">}</p> <br>
+                    <p style="padding-left:35px; margin:0;">location /media/ {</p>
+                        <p style="padding-left:65px; margin:0;">alias /home/app/web/mediafiles/;</p>
+                        <p style="padding-left:35px; margin:0;">}</p> <br>
+                    }
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        Przebudowuje obrazy, tworzę nowe kontenery, wykonuję migrację i przeniesienie plików:
+        <div class="container d-flex align-items-center justify-content-center">
+            <div class="lh-1 bg-dark text-white px-2 py-1">
+                <samp>
+                    $ docker-compose down -v <br><br>
+                    $ docker-compose -f docker-compose.prod.yml up -d --build    <br>
+                    $ docker-compose -f docker-compose.prod.yml exec web python manage.py migrate --noinput        <br>
+                    $ docker-compose -f docker-compose.prod.yml exec web python manage.py collectstatic --no-input --clear<br>
+                </samp>
+            </div>
+        </div>
+    </p>
+    <p>
+        Pozostało tylko sprawdzić czy konfiguracja działa poprawnie:
+        <br> 1) Pod adresem  <a href="http://localhost:1337/" class="link-primary" target="_blank">http://localhost:1337/</a>
+                wrzucić plik
+        <br> 2) Pod adresem <a href="http://localhost:1337/media/NAZWA_PLIKU" class="link-primary" target="_blank">http://localhost:1337/media/NAZWA_PLIKU</a>
+                sprawdzić czy zdjęcie jest dostępne
+                <br><br><br><br>
+        <p>
+            Bibliografia:
+            <ul>
+                <li>https://www.djangoproject.com/start/</li>
+                <li>https://docs.docker.com/compose/reference/</li>
+                <li>https://docs.docker.com/get-started/</li>
+                <li>https://hub.docker.com/_/nginx</li>
+                <li>https://hub.docker.com/_/postgres</li>
+                <li>https://docs.docker.com/get-started/</li>
+            </ul> 
+        </p>
+    </p>
+    </div>
+    <footer class="bg-light text-center ">
+        Wawrzkowicz Patryk, Rzeszów 2022
+    </footer>
   </body>
 </html>
